@@ -616,90 +616,91 @@ textarea { resize: vertical; min-height: 160px; }
 </div>
 
 <script>
-// ════════════════════════════════════════════
-// CONFIG \'97 운영자 비밀번호 변경 가능
-// ════════════════════════════════════════════
-const ADMIN_PASSWORD = "taiwan2024!";
+// ── CONFIG ──
+var ADMIN_PASSWORD = "taiwan2024!";
 
-// ════════════════════════════════════════════
-// STATE
-// ════════════════════════════════════════════
-let currentUser = null;
-let gameState = null;
-let activeCellIndex = null;
-let pendingPhotoFile = null;
-let generatedCredentials = [];
+// ── STATE ──
+var currentUser = null;
+var gameState = null;
+var activeCellIndex = null;
+var pendingPhotoFile = null;
+var generatedCredentials = [];
 
-// ════════════════════════════════════════════
-// SCREEN MANAGEMENT
-// ════════════════════════════════════════════
+// ── 기본 참여자 명단 ──
+var DEFAULT_ACCOUNTS = [
+  ['이익재','720412'],['최진욱','871003'],['김건우','790417'],['김윤희','711113'],
+  ['김정은p','810129'],['김정은','761105'],['박진경','860206'],['한민희','760802'],
+  ['고정실','760811'],['안호식','810423'],['오신현','780718'],['박소정','920127'],
+  ['전인순','770115'],['방지은','920512'],['김다인','920702'],['김호준','950307'],
+  ['권용재','930410'],['안수민','800422'],['한영옥','750827'],['권혜정','731218'],
+  ['송가은','820625'],['이혜경','840224'],['김선경','751017'],['최옥진','711126'],
+  ['최현지','920227'],['이인선','820713'],['김도현','990605'],['박수영','940608'],
+  ['이다혜','970121'],['이윤비','981010']
+];
+
+// ── FIREBASE ──
+function fb() { return window._fb; }
+
+function fbReady() {
+  return new Promise(function(resolve, reject) {
+    var tries = 0;
+    var timer = setInterval(function() {
+      if (window._fb) { clearInterval(timer); resolve(); }
+      else if (++tries > 50) { clearInterval(timer); reject(new Error("Firebase 초기화 실패")); }
+    }, 100);
+  });
+}
+
+// ── SCREEN ──
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
   window.scrollTo(0, 0);
 }
 
 function switchAdminTab(tabId, btn) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   btn.classList.add('active');
-  ['tab-setup','tab-players'].forEach(id => {
+  ['tab-setup','tab-players'].forEach(function(id) {
     document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
   });
   if (tabId === 'tab-players') loadPlayers();
 }
 
-// ════════════════════════════════════════════
-// FIREBASE HELPERS
-// ════════════════════════════════════════════
-function fb() { return window._fb; }
-
-async function fbReady() {
-  let tries = 0;
-  while (!window._fb && tries < 50) {
-    await new Promise(r => setTimeout(r, 100));
-    tries++;
-  }
-  if (!window._fb) throw new Error("Firebase가 초기화되지 않았습니다. Firebase 설정을 확인하세요.");
+function showAlert(el, msg) {
+  el.textContent = msg;
+  el.classList.add('show');
 }
 
-// ════════════════════════════════════════════
-// LOGIN
-// ════════════════════════════════════════════
-async function doLogin() {
-  const id = document.getElementById('login-id').value.trim();
-  const pw = document.getElementById('login-pw').value.trim();
-  const errEl = document.getElementById('login-error');
+// ── LOGIN ──
+function doLogin() {
+  var id = document.getElementById('login-id').value.trim();
+  var pw = document.getElementById('login-pw').value.trim();
+  var errEl = document.getElementById('login-error');
   errEl.classList.remove('show');
 
   if (!id || !pw) { showAlert(errEl, '아이디와 비밀번호를 입력하세요.'); return; }
 
-  try {
-    await fbReady();
-    const { db, doc, getDoc } = fb();
-    const snap = await getDoc(doc(db, 'players', id));
-    if (!snap.exists()) { showAlert(errEl, '존재하지 않는 아이디입니다.'); return; }
-    const data = snap.data();
-    if (data.password !== pw) { showAlert(errEl, '비밀번호가 올바르지 않습니다.'); return; }
-
+  fbReady().then(function() {
+    var fbObj = fb();
+    return fbObj.getDoc(fbObj.doc(fbObj.db, 'players', id));
+  }).then(function(snap) {
+    if (!snap.exists()) { showAlert(document.getElementById('login-error'), '존재하지 않는 아이디입니다.'); return; }
+    var data = snap.data();
+    if (data.password !== pw) { showAlert(document.getElementById('login-error'), '비밀번호가 올바르지 않습니다.'); return; }
     currentUser = id;
     gameState = data;
     document.getElementById('game-user-label').textContent = id + ' 님';
-
-    if (data.completed) {
-      renderBoard(data.board, data.checked, data.photos || {});
-      showScreen('screen-win');
-    } else {
-      renderBoard(data.board, data.checked, data.photos || {});
-      showScreen('screen-game');
-    }
-  } catch(e) {
-    showAlert(errEl, '오류: ' + e.message);
-  }
+    renderBoard(data.board, data.checked, data.photos || {});
+    showScreen(data.completed ? 'screen-win' : 'screen-game');
+  }).catch(function(e) {
+    showAlert(document.getElementById('login-error'), '오류: ' + e.message);
+  });
 }
 
 function doAdminLogin() {
-  const pw = document.getElementById('admin-pw').value;
-  const errEl = document.getElementById('admin-login-error');
+  var pw = document.getElementById('admin-pw').value;
+  var errEl = document.getElementById('admin-login-error');
   errEl.classList.remove('show');
   if (pw === ADMIN_PASSWORD) {
     showScreen('screen-admin');
@@ -711,238 +712,177 @@ function doAdminLogin() {
 function logout() {
   currentUser = null;
   gameState = null;
-  document.getElementById('login-id').value = '';
-  document.getElementById('login-pw').value = '';
   showScreen('screen-login');
 }
 
-// ════════════════════════════════════════════
-// GAME CREATION (Admin)
-// ════════════════════════════════════════════
-document.getElementById('names-input').addEventListener('input', () => {
-  const n = document.getElementById('names-input').value.split('\n').filter(x=>x.trim()).length;
-  document.getElementById('name-count').textContent = n + ' / 30명';
-  document.getElementById('name-count').style.color = n === 30 ? 'var(--success)' : 'var(--text-muted)';
-});
-document.getElementById('events-input').addEventListener('input', () => {
-  const n = document.getElementById('events-input').value.split('').filter(x=>x.trim()).length;
-  document.getElementById('event-count').textContent = n + ' / 6개';
-  document.getElementById('event-count').style.color = n === 6 ? 'var(--success)' : 'var(--text-muted)';
-});
-
-// 기본 참여자 명단 (이름, 생년월일)
-const DEFAULT_ACCOUNTS = [
-  ['이익재','720412'],['최진욱','871003'],['김건우','790417'],['김윤희','711113'],
-  ['김정은p','810129'],['김정은','761105'],['박진경','860206'],['한민희','760802'],
-  ['고정실','760811'],['안호식','810423'],['오신현','780718'],['박소정','920127'],
-  ['전인순','770115'],['방지은','920512'],['김다인','920702'],['김호준','950307'],
-  ['권용재','930410'],['안수민','800422'],['한영옥','750827'],['권혜정','731218'],
-  ['송가은','820625'],['이혜경','840224'],['김선경','751017'],['최옥진','711126'],
-  ['최현지','920227'],['이인선','820713'],['김도현','990605'],['박수영','940608'],
-  ['이다혜','970121'],['이윤비','981010']
-];
-
+// ── ADMIN ──
 function loadDefaultAccounts() {
-  const ta = document.getElementById('accounts-input');
-  ta.value = DEFAULT_ACCOUNTS.map(([n,d]) => n+','+d).join('
-');
+  var ta = document.getElementById('accounts-input');
+  ta.value = DEFAULT_ACCOUNTS.map(function(pair) { return pair[0] + ',' + pair[1]; }).join('\n');
   ta.dispatchEvent(new Event('input'));
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const ta = document.getElementById('accounts-input');
-  if (ta) {
-    ta.addEventListener('input', () => {
-      const lines = ta.value.split('
-').filter(l=>l.trim() && l.includes(','));
-      document.getElementById('accounts-count').textContent = lines.length + '명 입력됨';
-      document.getElementById('accounts-count').style.color = lines.length === 30 ? 'var(--success)' : 'var(--text-muted)';
-    });
-  }
-});
-
-async function createGame() {
-  const names = document.getElementById('names-input').value.split('
-').map(x=>x.trim()).filter(Boolean);
-  const events = document.getElementById('events-input').value.split('
-').map(x=>x.trim()).filter(Boolean);
-
-  // 계정 설정 파싱
-  const accountsRaw = document.getElementById('accounts-input').value.split('
-')
-    .map(l => l.trim()).filter(l => l && l.includes(','));
-  const accounts = accountsRaw.map(l => {
-    const idx = l.indexOf(',');
-    return { id: l.slice(0, idx).trim(), password: l.slice(idx+1).trim() };
+function createGame() {
+  var names = document.getElementById('names-input').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+  var events = document.getElementById('events-input').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+  var accountLines = document.getElementById('accounts-input').value.split('\n').map(function(l){return l.trim();}).filter(function(l){return l && l.indexOf(',')!==-1;});
+  var accounts = accountLines.map(function(l) {
+    var idx = l.indexOf(',');
+    return { id: l.slice(0,idx).trim(), password: l.slice(idx+1).trim() };
   });
 
-  const errEl = document.getElementById('setup-error');
-  const sucEl = document.getElementById('setup-success');
+  var errEl = document.getElementById('setup-error');
+  var sucEl = document.getElementById('setup-success');
   errEl.classList.remove('show');
   sucEl.classList.remove('show');
 
-  if (names.length !== 30) { showAlert(errEl, `이름이 ${names.length}개입니다. 정확히 30명을 입력하세요.`); return; }
-  if (events.length !== 6) { showAlert(errEl, `이벤트가 ${events.length}개입니다. 정확히 6개를 입력하세요.`); return; }
-  if (accounts.length === 0) { showAlert(errEl, '계정 설정에 참여자를 입력하거나 기본 명단을 불러오세요.'); return; }
+  if (names.length !== 30) { showAlert(errEl, '이름이 ' + names.length + '개입니다. 정확히 30명을 입력하세요.'); return; }
+  if (events.length !== 6) { showAlert(errEl, '이벤트가 ' + events.length + '개입니다. 정확히 6개를 입력하세요.'); return; }
+  if (accounts.length === 0) { showAlert(errEl, '계정 목록을 입력하거나 기본 명단을 불러오세요.'); return; }
 
-  const btn = document.getElementById('create-btn');
+  var btn = document.getElementById('create-btn');
   btn.innerHTML = '<span class="spinner"></span> 생성 중...';
   btn.disabled = true;
 
-  try {
-    await fbReady();
-    const { db, doc, setDoc } = fb();
-    const cells = [...names.map(n=>({type:'person',label:n})), ...events.map(e=>({type:'event',label:e}))];
+  var cells = names.map(function(n){return {type:'person',label:n};}).concat(events.map(function(e){return {type:'event',label:e};}));
 
+  fbReady().then(function() {
+    var fbObj = fb();
     generatedCredentials = [];
-    for (const acc of accounts) {
-      const board = shuffle([...cells]).map(c => ({...c}));
-      await setDoc(doc(db, 'players', acc.id), {
-        password: acc.password,
-        board,
-        checked: Array(36).fill(false),
-        photos: {},
-        bingos: 0,
-        completed: false,
-        createdAt: new Date().toISOString()
+    var chain = Promise.resolve();
+    accounts.forEach(function(acc) {
+      chain = chain.then(function() {
+        var board = shuffle(cells.slice()).map(function(c){return Object.assign({},c);});
+        return fbObj.setDoc(fbObj.doc(fbObj.db,'players',acc.id), {
+          password: acc.password, board: board,
+          checked: Array(36).fill(false), photos: {},
+          bingos: 0, completed: false, createdAt: new Date().toISOString()
+        }).then(function() {
+          generatedCredentials.push({id: acc.id, password: acc.password});
+        });
       });
-      generatedCredentials.push({ id: acc.id, password: acc.password });
-    }
-
-    showAlert(sucEl, `✅ ${accounts.length}명의 게임이 생성되었습니다!`);
+    });
+    return chain;
+  }).then(function() {
+    showAlert(sucEl, '✅ ' + generatedCredentials.length + '명의 게임이 생성되었습니다!');
     renderCredentials();
-
-  } catch(e) {
+  }).catch(function(e) {
     showAlert(errEl, '오류: ' + e.message);
-  } finally {
+  }).finally(function() {
     btn.textContent = '🚀 게임 생성하기';
     btn.disabled = false;
-  }
+  });
 }
 
 function renderCredentials() {
-  const list = document.getElementById('credentials-list');
-  list.innerHTML = generatedCredentials.map(c => `
-    <div class="copy-row">
-      <span>👤 <strong>${c.id}</strong> &nbsp;|&nbsp; 🔑 ${c.password}</span>
-      <button class="copy-btn" onclick="copyText('${c.id} / ${c.password}', this)">복사</button>
-    </div>
-  `).join('');
+  var list = document.getElementById('credentials-list');
+  list.innerHTML = generatedCredentials.map(function(c) {
+    return '<div class="copy-row"><span>👤 <strong>' + c.id + '</strong> &nbsp;|&nbsp; 🔑 ' + c.password + '</span>'
+      + '<button class="copy-btn" onclick="copyText(\'' + c.id + ' / ' + c.password + '\', this)">복사</button></div>';
+  }).join('');
   document.getElementById('credentials-card').style.display = 'block';
 }
 
 function copyText(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
+  navigator.clipboard.writeText(text).then(function() {
     btn.textContent = '✓';
-    setTimeout(() => btn.textContent = '복사', 1200);
+    setTimeout(function(){btn.textContent='복사';}, 1200);
   });
 }
 
 function downloadCSV() {
-  const csv = 'ID,Password' + generatedCredentials.map(c => `${c.id},${c.password}`).join('');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
+  var csv = 'ID,Password\n' + generatedCredentials.map(function(c){return c.id+','+c.password;}).join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'bingo_accounts.csv';
   a.click();
 }
 
-async function loadPlayers() {
-  const tbody = document.getElementById('players-tbody');
+function loadPlayers() {
+  var tbody = document.getElementById('players-tbody');
   tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px"><span class="spinner"></span></td></tr>';
-  try {
-    await fbReady();
-    const { db, collection, getDocs } = fb();
-    const snap = await getDocs(collection(db, 'players'));
+  fbReady().then(function() {
+    var fbObj = fb();
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'players'));
+  }).then(function(snap) {
     if (snap.empty) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">참여자 없음</td></tr>';
       return;
     }
     tbody.innerHTML = '';
-    snap.forEach(d => {
-      const data = d.data();
-      const checked = (data.checked || []).filter(Boolean).length;
-      const status = data.completed
-        ? `<span class="badge badge-green">완료</span>`
-        : checked > 0
-        ? `<span class="badge badge-yellow">진행중</span>`
-        : `<span class="badge badge-gray">미시작</span>`;
-      tbody.innerHTML += `<tr>
-        <td>${d.id}</td>
-        <td>${data.bingos || 0}줄</td>
-        <td>${checked} / 36</td>
-        <td>${status}</td>
-      </tr>`;
+    snap.forEach(function(d) {
+      var data = d.data();
+      var checked = (data.checked||[]).filter(Boolean).length;
+      var status = data.completed ? '<span class="badge badge-green">완료</span>'
+        : checked > 0 ? '<span class="badge badge-yellow">진행중</span>'
+        : '<span class="badge badge-gray">미시작</span>';
+      tbody.innerHTML += '<tr><td>'+d.id+'</td><td>'+(data.bingos||0)+'줄</td><td>'+checked+' / 36</td><td>'+status+'</td></tr>';
     });
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--accent3);padding:24px">${e.message}</td></tr>`;
-  }
+  }).catch(function(e) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--accent3);padding:24px">'+e.message+'</td></tr>';
+  });
 }
 
-// ════════════════════════════════════════════
-// BINGO BOARD
-// ════════════════════════════════════════════
+// ── BINGO BOARD ──
 function renderBoard(board, checked, photos) {
-  const container = document.getElementById('bingo-board');
+  var container = document.getElementById('bingo-board');
   container.innerHTML = '';
-  board.forEach((cell, i) => {
-    const div = document.createElement('div');
-    const hasPhoto = checked[i] && photos[i];
-    div.className = 'bingo-cell' + (cell.type==='event'?' event':'') + (checked[i]?' checked':'') + (hasPhoto?' has-photo':'');
-    div.innerHTML = `<span class="cell-label">${cell.label}</span>`;
+  board.forEach(function(cell, i) {
+    var div = document.createElement('div');
+    var hasPhoto = checked[i] && photos[i];
+    div.className = 'bingo-cell'
+      + (cell.type==='event' ? ' event' : '')
+      + (checked[i] ? ' checked' : '')
+      + (hasPhoto ? ' has-photo' : '');
+    div.innerHTML = '<span class="cell-label">'+cell.label+'</span>';
     if (hasPhoto) {
-      const img = document.createElement('img');
+      var img = document.createElement('img');
       img.src = photos[i];
       div.insertBefore(img, div.firstChild);
     }
-    div.onclick = () => openModal(i, cell);
+    (function(idx, c) { div.onclick = function() { openModal(idx, c); }; })(i, cell);
     container.appendChild(div);
   });
   updateStatus(checked);
 }
 
 function updateStatus(checked) {
-  const total = checked.filter(Boolean).length;
-  document.getElementById('progress-label').textContent = `${total} / 36 완료`;
+  var total = checked.filter(Boolean).length;
+  document.getElementById('progress-label').textContent = total + ' / 36 완료';
   document.getElementById('progress-fill').style.width = (total/36*100) + '%';
-
-  const bingos = countBingos(checked);
-  const statusEl = document.getElementById('bingo-status');
-  statusEl.innerHTML = [1,2,3].map(n =>
-    `<div class="bingo-badge ${bingos>=n?'done':''}">BINGO ${n}${bingos>=n?' ✓':''}</div>`
-  ).join('');
+  var bingos = countBingos(checked);
+  document.getElementById('bingo-status').innerHTML = [1,2,3].map(function(n) {
+    return '<div class="bingo-badge '+(bingos>=n?'done':'')+'">BINGO '+n+(bingos>=n?' ✓':'')+'</div>';
+  }).join('');
 }
 
 function countBingos(checked) {
-  const lines = getBingoLines();
-  let count = 0;
-  lines.forEach(line => { if(line.every(i=>checked[i])) count++; });
+  var count = 0;
+  getBingoLines().forEach(function(line) {
+    if (line.every(function(i){return checked[i];})) count++;
+  });
   return count;
 }
 
 function getBingoLines() {
-  const lines = [];
-  for(let r=0;r<6;r++) { const line=[]; for(let c=0;c<6;c++) line.push(r*6+c); lines.push(line); }
-  for(let c=0;c<6;c++) { const line=[]; for(let r=0;r<6;r++) line.push(r*6+c); lines.push(line); }
-  const d1=[],d2=[];
-  for(let i=0;i<6;i++) { d1.push(i*6+i); d2.push(i*6+(5-i)); }
+  var lines = [], r, c, d1=[], d2=[];
+  for (r=0;r<6;r++){var l=[];for(c=0;c<6;c++)l.push(r*6+c);lines.push(l);}
+  for (c=0;c<6;c++){var l=[];for(r=0;r<6;r++)l.push(r*6+c);lines.push(l);}
+  for (var i=0;i<6;i++){d1.push(i*6+i);d2.push(i*6+(5-i));}
   lines.push(d1,d2);
   return lines;
 }
 
-// ════════════════════════════════════════════
-// PHOTO MODAL
-// ════════════════════════════════════════════
+// ── PHOTO MODAL ──
 function openModal(index, cell) {
-  if (!gameState) return;
-  if (gameState.checked[index]) return;
+  if (!gameState || gameState.checked[index]) return;
   activeCellIndex = index;
   pendingPhotoFile = null;
-  document.getElementById('modal-cell-name').textContent = cell.type === 'event' ? '⭐ ' + cell.label : '🤳 ' + cell.label;
+  document.getElementById('modal-cell-name').textContent = (cell.type==='event'?'⭐ ':'🤳 ') + cell.label;
   document.getElementById('modal-error').classList.remove('show');
-  const preview = document.getElementById('photo-preview-area');
-  preview.innerHTML = `<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />`;
-  document.getElementById('modal-confirm-btn').textContent = cell.type === 'event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
+  document.getElementById('photo-preview-area').innerHTML = '<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />';
+  document.getElementById('modal-confirm-btn').textContent = cell.type==='event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
   document.getElementById('photo-modal').classList.add('open');
 }
 
@@ -953,94 +893,100 @@ function closeModal() {
 }
 
 function previewPhoto(e) {
-  const file = e.target.files[0];
+  var file = e.target.files[0];
   if (!file) return;
   pendingPhotoFile = file;
-  const preview = document.getElementById('photo-preview-area');
-  const url = URL.createObjectURL(file);
-  preview.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+  document.getElementById('photo-preview-area').innerHTML = '<img src="'+URL.createObjectURL(file)+'" style="width:100%;height:100%;object-fit:cover;border-radius:8px">';
 }
 
-async function confirmCell() {
-  const btn = document.getElementById('modal-confirm-btn');
-  const errEl = document.getElementById('modal-error');
+function confirmCell() {
+  var btn = document.getElementById('modal-confirm-btn');
+  var errEl = document.getElementById('modal-error');
   errEl.classList.remove('show');
-
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
 
-  try {
-    await fbReady();
-    const { db, doc, updateDoc, storage, ref, uploadBytes, getDownloadURL } = fb();
-
-    let photoUrl = null;
-    if (pendingPhotoFile) {
-      const storageRef = ref(storage, `photos/${currentUser}/${activeCellIndex}_${Date.now()}`);
-      await uploadBytes(storageRef, pendingPhotoFile);
-      photoUrl = await getDownloadURL(storageRef);
-    }
-
-    const newChecked = [...gameState.checked];
-    newChecked[activeCellIndex] = true;
-    const newPhotos = {...(gameState.photos||{})};
-    if (photoUrl) newPhotos[activeCellIndex] = photoUrl;
-
-    const newBingos = countBingos(newChecked);
-    const completed = newBingos >= 3;
-
-    await updateDoc(doc(db, 'players', currentUser), {
-      checked: newChecked,
-      photos: newPhotos,
-      bingos: newBingos,
-      completed
+  var photoPromise = Promise.resolve(null);
+  if (pendingPhotoFile) {
+    photoPromise = fbReady().then(function() {
+      var fbObj = fb();
+      var storageRef = fbObj.ref(fbObj.storage, 'photos/'+currentUser+'/'+activeCellIndex+'_'+Date.now());
+      return fbObj.uploadBytes(storageRef, pendingPhotoFile).then(function() {
+        return fbObj.getDownloadURL(storageRef);
+      });
     });
+  }
 
-    gameState.checked = newChecked;
-    gameState.photos = newPhotos;
-    gameState.bingos = newBingos;
-    gameState.completed = completed;
+  photoPromise.then(function(photoUrl) {
+    var newChecked = gameState.checked.slice();
+    newChecked[activeCellIndex] = true;
+    var newPhotos = Object.assign({}, gameState.photos||{});
+    if (photoUrl) newPhotos[activeCellIndex] = photoUrl;
+    var newBingos = countBingos(newChecked);
+    var completed = newBingos >= 3;
 
-    closeModal();
-    renderBoard(gameState.board, gameState.checked, gameState.photos);
-    highlightBingoLines(newChecked);
-
-    if (completed) {
-      setTimeout(() => showScreen('screen-win'), 800);
-    }
-
-  } catch(e) {
-    showAlert(errEl, '저장 실패: ' + e.message);
-  } finally {
+    return fbReady().then(function() {
+      var fbObj = fb();
+      return fbObj.updateDoc(fbObj.doc(fbObj.db,'players',currentUser), {
+        checked: newChecked, photos: newPhotos, bingos: newBingos, completed: completed
+      }).then(function() {
+        gameState.checked = newChecked;
+        gameState.photos = newPhotos;
+        gameState.bingos = newBingos;
+        gameState.completed = completed;
+        closeModal();
+        renderBoard(gameState.board, gameState.checked, gameState.photos);
+        highlightBingoLines(newChecked);
+        if (completed) setTimeout(function(){showScreen('screen-win');}, 800);
+      });
+    });
+  }).catch(function(e) {
+    showAlert(document.getElementById('modal-error'), '저장 실패: ' + e.message);
+  }).finally(function() {
     btn.textContent = '✅ 완료 체크';
     btn.disabled = false;
-  }
+  });
 }
 
 function highlightBingoLines(checked) {
-  const lines = getBingoLines();
-  const cells = document.querySelectorAll('.bingo-cell');
-  lines.forEach(line => {
-    if (line.every(i => checked[i])) {
-      line.forEach(i => cells[i].classList.add('bingo-line'));
+  var cells = document.querySelectorAll('.bingo-cell');
+  getBingoLines().forEach(function(line) {
+    if (line.every(function(i){return checked[i];})) {
+      line.forEach(function(i){cells[i].classList.add('bingo-line');});
     }
   });
 }
 
-// ════════════════════════════════════════════
-// UTILS
-// ════════════════════════════════════════════
+// ── UTILS ──
 function shuffle(arr) {
-  for (let i = arr.length-1; i > 0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]] = [arr[j],arr[i]];
+  for (var i=arr.length-1;i>0;i--) {
+    var j=Math.floor(Math.random()*(i+1));
+    var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
   }
   return arr;
 }
 
-function showAlert(el, msg) {
-  el.textContent = msg;
-  el.classList.add('show');
-}
+// ── 이벤트 리스너 ──
+document.addEventListener('DOMContentLoaded', function() {
+  var ni = document.getElementById('names-input');
+  if (ni) ni.addEventListener('input', function() {
+    var n = ni.value.split('\n').filter(function(x){return x.trim();}).length;
+    var el = document.getElementById('name-count');
+    if (el) { el.textContent = n+' / 30명'; el.style.color = n===30?'var(--success)':'var(--text-muted)'; }
+  });
+  var ei = document.getElementById('events-input');
+  if (ei) ei.addEventListener('input', function() {
+    var n = ei.value.split('\n').filter(function(x){return x.trim();}).length;
+    var el = document.getElementById('event-count');
+    if (el) { el.textContent = n+' / 6개'; el.style.color = n===6?'var(--success)':'var(--text-muted)'; }
+  });
+  var ai = document.getElementById('accounts-input');
+  if (ai) ai.addEventListener('input', function() {
+    var lines = ai.value.split('\n').filter(function(l){return l.trim()&&l.indexOf(',')!==-1;});
+    var el = document.getElementById('accounts-count');
+    if (el) { el.textContent = lines.length+'명 입력됨'; el.style.color = lines.length===30?'var(--success)':'var(--text-muted)'; }
+  });
+});
 </script>
 </body>
 </html>
