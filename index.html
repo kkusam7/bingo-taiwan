@@ -887,39 +887,48 @@ function getBingoLines() {
 }
 
 // ── PHOTO MODAL ──
+function getPhotoByIndex(photos, index) {
+  if (!photos) return null;
+  // key가 숫자/문자열 둘 다 올 수 있으므로 모두 확인
+  return photos[index] || photos[String(index)] || null;
+}
+
 function openModal(index, cell) {
   if (!gameState) return;
-  // 이미 체크된 칸도 사진 등록/변경을 위해 모달 열기
   activeCellIndex = index;
   pendingPhotoFile = null;
   document.getElementById('modal-cell-name').textContent = (cell.type==='event'?'⭐ ':'🤳 ') + cell.label;
   document.getElementById('modal-error').classList.remove('show');
+
   var alreadyChecked = gameState.checked[index];
-  var existingPhoto = gameState.photos && gameState.photos[index];
-  // 미리보기 초기화
+  var existingPhoto = getPhotoByIndex(gameState.photos, index);
+
+  // input file 초기화
+  document.getElementById('photo-file').value = '';
+
+  // 미리보기 영역 초기화
   var previewImg = document.getElementById('photo-preview-img');
   var placeholder = document.getElementById('photo-placeholder');
-  document.getElementById('photo-file').value = '';
   if (existingPhoto) {
     previewImg.src = existingPhoto;
     previewImg.style.display = 'block';
-    if (placeholder) placeholder.style.display = 'none';
-    document.getElementById('modal-sub-text').textContent = '📷 사진을 바꾸려면 눌러주세요';
+    placeholder.style.display = 'none';
+    document.getElementById('modal-sub-text').textContent = '📷 이미지를 누르면 사진을 바꿀 수 있어요';
   } else {
     previewImg.src = '';
     previewImg.style.display = 'none';
-    if (placeholder) placeholder.style.display = 'block';
+    placeholder.style.display = 'block';
     document.getElementById('modal-sub-text').textContent = '📷 사진을 먼저 찍어주세요!';
   }
+
   var confirmBtn = document.getElementById('modal-confirm-btn');
   if (alreadyChecked) {
-    // 이미 체크된 칸: 사진 변경 모드 - 바로 누를 수 있게
-    confirmBtn.textContent = '📷 사진 변경하기';
-    confirmBtn.disabled = false;
-    confirmBtn.style.opacity = '1';
+    confirmBtn.textContent = '📷 사진 저장하기';
+    // 이미 사진 있으면 버튼 활성 (새 사진 없어도 기존 사진 유지), 없으면 비활성
+    confirmBtn.disabled = !existingPhoto;
+    confirmBtn.style.opacity = existingPhoto ? '1' : '0.5';
   } else {
     confirmBtn.textContent = cell.type==='event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
-    // 사진 없으면 비활성화 (이벤트칸은 사진 없어도 OK)
     if (cell.type === 'event') {
       confirmBtn.disabled = false;
       confirmBtn.style.opacity = '1';
@@ -928,6 +937,7 @@ function openModal(index, cell) {
       confirmBtn.style.opacity = '0.5';
     }
   }
+
   document.getElementById('photo-modal').classList.add('open');
 }
 
@@ -941,17 +951,16 @@ function previewPhoto(e) {
   var file = e.target.files[0];
   if (!file) return;
   pendingPhotoFile = file;
-  // 미리보기 이미지 표시
   var previewImg = document.getElementById('photo-preview-img');
   var placeholder = document.getElementById('photo-placeholder');
   previewImg.src = URL.createObjectURL(file);
   previewImg.style.display = 'block';
-  if (placeholder) placeholder.style.display = 'none';
-  // 사진 선택됐으니 완료 버튼 활성화
+  placeholder.style.display = 'none';
+  // 사진 선택되면 항상 버튼 활성화
   var btn = document.getElementById('modal-confirm-btn');
   btn.disabled = false;
   btn.style.opacity = '1';
-  document.getElementById('modal-sub-text').textContent = '✅ 사진이 선택됐어요! 완료 버튼을 눌러주세요.';
+  document.getElementById('modal-sub-text').textContent = '✅ 사진 선택 완료! 저장 버튼을 눌러주세요.';
 }
 
 // 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
@@ -993,7 +1002,11 @@ function confirmCell() {
     var newChecked = gameState.checked.slice();
     newChecked[activeCellIndex] = true;
     var newPhotos = Object.assign({}, gameState.photos||{});
-    if (photoBase64) newPhotos[String(activeCellIndex)] = photoBase64;
+    if (photoBase64) {
+      // 새 사진 저장
+      newPhotos[String(activeCellIndex)] = photoBase64;
+    }
+    // pendingPhotoFile 없으면 기존 사진 그대로 유지 (변경 없음)
     var newBingos = countBingos(newChecked);
     var completed = newBingos >= 3;
 
