@@ -13,7 +13,7 @@
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   // ============================================================
-  // ?? 여기에 Firebase 설정을 입력하세요
+  // 🔧 여기에 Firebase 설정을 입력하세요
   // Firebase Console > 프로젝트 설정 > 내 앱 > SDK 설정 및 구성
   // ============================================================
   const firebaseConfig = {
@@ -447,7 +447,7 @@ textarea { resize: vertical; min-height: 160px; }
 <!-- ════════════════ SCREEN: LOGIN ════════════════ -->
 <div id="screen-login" class="screen active">
   <div class="header">
-    <div class="logo">???? BINGO<span>대만 연수단 교류 게임</span></div>
+    <div class="logo">🎯 BINGO<span>대만 연수단 교류 게임</span></div>
   </div>
   <div class="main">
     <div class="card" style="margin-top:32px">
@@ -457,7 +457,7 @@ textarea { resize: vertical; min-height: 160px; }
       <input type="text" id="login-id" placeholder="아이디 입력" />
       <label>비밀번호</label>
       <input type="password" id="login-pw" placeholder="비밀번호 입력" />
-      <button class="btn btn-primary" onclick="doLogin()">?? 게임 시작</button>
+      <button class="btn btn-primary" onclick="doLogin()">🚀 게임 시작</button>
       <div style="text-align:center;margin-top:16px">
         <button class="btn btn-secondary btn-sm" onclick="showScreen('screen-admin-login')">⚙️ 운영자 로그인</button>
       </div>
@@ -491,8 +491,8 @@ textarea { resize: vertical; min-height: 160px; }
   <div class="main wide" style="padding-top:28px">
 
     <div class="tabs">
-      <button class="tab active" onclick="switchAdminTab('tab-setup', this)">?? 게임 설정</button>
-      <button class="tab" onclick="switchAdminTab('tab-players', this)">?? 참여자 관리</button>
+      <button class="tab active" onclick="switchAdminTab('tab-setup', this)">🎮 게임 설정</button>
+      <button class="tab" onclick="switchAdminTab('tab-players', this)">👥 참여자 관리</button>
     </div>
 
     <!-- TAB: SETUP -->
@@ -504,24 +504,33 @@ textarea { resize: vertical; min-height: 160px; }
         <div id="name-count" style="font-size:12px;color:var(--text-muted);margin-top:-12px;margin-bottom:16px">0 / 30명</div>
       </div>
       <div class="card">
+        <div class="card-title">참여자 계정 설정 (아이디 / 비밀번호)</div>
+        <label>한 줄에 <strong style="color:var(--accent)">이름,생년월일</strong> 형식으로 입력 (이름=아이디, 생년월일=비밀번호)</label>
+        <textarea id="accounts-input" style="min-height:200px;font-size:13px;font-family:monospace" placeholder="이익재,720412&#10;최진욱,871003&#10;김건우,790417&#10;..."></textarea>
+        <div style="display:flex;gap:8px;margin-top:-8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <span id="accounts-count" style="font-size:12px;color:var(--text-muted)">0명 입력됨</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadDefaultAccounts()">📋 기본 명단 불러오기</button>
+        </div>
+        <div class="alert alert-info show" style="font-size:12px">아이디: 이름 그대로 | 비밀번호: 생년월일 6자리 (예: 720412)</div>
+      </div>
+      <div class="card">
         <div class="card-title">이벤트 칸 (6개)</div>
         <label>한 줄에 이벤트 하나씩 입력 (정확히 6개)</label>
-        <textarea id="events-input" style="min-height:120px" placeholder="?? 노래 한 곡 부르기&#10;?? 댄스 챌린지&#10;..."></textarea>
+        <textarea id="events-input" style="min-height:120px" placeholder="🎤 노래 한 곡 부르기&#10;💃 댄스 챌린지&#10;..."></textarea>
         <div id="event-count" style="font-size:12px;color:var(--text-muted);margin-top:-12px;margin-bottom:16px">0 / 6개</div>
       </div>
       <div class="card">
         <div class="card-title">게임 생성</div>
-        <label>참여 인원 수</label>
-        <input type="number" id="player-count" placeholder="예: 30" min="1" max="100" />
-        <div class="alert alert-info show">참여 인원 수 입력 시 자동으로 아이디/비밀번호가 생성됩니다.</div>
+        <input type="number" id="player-count" style="display:none" value="30" />
+        <div class="alert alert-info show">계정 설정에서 입력한 이름이 아이디, 생년월일이 비밀번호로 자동 설정됩니다.</div>
         <div class="alert alert-error" id="setup-error"></div>
         <div class="alert alert-success" id="setup-success"></div>
-        <button class="btn btn-primary" id="create-btn" onclick="createGame()">?? 게임 생성하기</button>
+        <button class="btn btn-primary" id="create-btn" onclick="createGame()">🚀 게임 생성하기</button>
       </div>
       <div class="card" id="credentials-card" style="display:none">
         <div class="card-title">생성된 계정 목록</div>
         <div id="credentials-list"></div>
-        <button class="btn btn-secondary" style="margin-top:12px" onclick="downloadCSV()">?? CSV 다운로드</button>
+        <button class="btn btn-secondary" style="margin-top:12px" onclick="downloadCSV()">📥 CSV 다운로드</button>
       </div>
     </div>
 
@@ -529,7 +538,7 @@ textarea { resize: vertical; min-height: 160px; }
     <div id="tab-players" style="display:none">
       <div class="card">
         <div class="card-title">참여자 현황</div>
-        <button class="btn btn-secondary btn-sm" style="margin-bottom:16px" onclick="loadPlayers()">?? 새로고침</button>
+        <button class="btn btn-secondary btn-sm" style="margin-bottom:16px" onclick="loadPlayers()">🔄 새로고침</button>
         <div style="overflow-x:auto">
           <table class="player-table">
             <thead>
@@ -554,13 +563,13 @@ textarea { resize: vertical; min-height: 160px; }
 <!-- ════════════════ SCREEN: GAME ════════════════ -->
 <div id="screen-game" class="screen">
   <div class="header">
-    <div class="logo">???? BINGO<span id="game-user-label"></span></div>
+    <div class="logo">🎯 BINGO<span id="game-user-label"></span></div>
     <button class="btn btn-secondary btn-sm" onclick="logout()">나가기</button>
   </div>
   <div class="main wide" style="padding-top:24px">
     <div class="card">
       <div class="bingo-status" id="bingo-status"></div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">3줄 완성 시 게임 종료! 이름 칸을 클릭하면 셀카를 등록할 수 있어요 ??</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">3줄 완성 시 게임 종료! 이름 칸을 클릭하면 셀카를 등록할 수 있어요 📸</div>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
       <div style="font-size:12px;color:var(--text-muted);margin-top:6px;margin-bottom:20px" id="progress-label">0 / 36 완료</div>
       <div class="bingo-wrapper">
@@ -576,15 +585,15 @@ textarea { resize: vertical; min-height: 160px; }
 <!-- ════════════════ SCREEN: WIN ════════════════ -->
 <div id="screen-win" class="screen">
   <div class="header">
-    <div class="logo">???? BINGO<span>대만 연수단 교류 게임</span></div>
+    <div class="logo">🎯 BINGO<span>대만 연수단 교류 게임</span></div>
   </div>
   <div class="main">
     <div class="win-screen">
-      <div class="win-emoji">??</div>
+      <div class="win-emoji">🎉</div>
       <div class="win-title">BINGO!</div>
       <div class="win-sub" style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px">3줄 완성!</div>
       <div class="win-sub">모든 빙고를 완성했어요. 수고하셨습니다!</div>
-      <button class="btn btn-primary" style="margin-top:32px;max-width:280px" onclick="showScreen('screen-game')">?? 내 빙고 보기</button>
+      <button class="btn btn-primary" style="margin-top:32px;max-width:280px" onclick="showScreen('screen-game')">🎮 내 빙고 보기</button>
     </div>
   </div>
 </div>
@@ -593,9 +602,9 @@ textarea { resize: vertical; min-height: 160px; }
 <div class="modal-overlay" id="photo-modal">
   <div class="modal">
     <div class="modal-title" id="modal-cell-name"></div>
-    <div class="modal-sub">셀카를 찍어서 업로드하세요! ??</div>
+    <div class="modal-sub">셀카를 찍어서 업로드하세요! 📷</div>
     <div class="photo-preview" id="photo-preview-area" onclick="document.getElementById('photo-file').click()">
-      <div class="placeholder">??<br>클릭하여<br>사진 업로드</div>
+      <div class="placeholder">📷<br>클릭하여<br>사진 업로드</div>
       <input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />
     </div>
     <div class="alert alert-error" id="modal-error"></div>
@@ -711,7 +720,7 @@ function logout() {
 // GAME CREATION (Admin)
 // ════════════════════════════════════════════
 document.getElementById('names-input').addEventListener('input', () => {
-  const n = document.getElementById('names-input').value.split('').filter(x=>x.trim()).length;
+  const n = document.getElementById('names-input').value.split('\n').filter(x=>x.trim()).length;
   document.getElementById('name-count').textContent = n + ' / 30명';
   document.getElementById('name-count').style.color = n === 30 ? 'var(--success)' : 'var(--text-muted)';
 });
@@ -721,10 +730,51 @@ document.getElementById('events-input').addEventListener('input', () => {
   document.getElementById('event-count').style.color = n === 6 ? 'var(--success)' : 'var(--text-muted)';
 });
 
+// 기본 참여자 명단 (이름, 생년월일)
+const DEFAULT_ACCOUNTS = [
+  ['이익재','720412'],['최진욱','871003'],['김건우','790417'],['김윤희','711113'],
+  ['김정은p','810129'],['김정은','761105'],['박진경','860206'],['한민희','760802'],
+  ['고정실','760811'],['안호식','810423'],['오신현','780718'],['박소정','920127'],
+  ['전인순','770115'],['방지은','920512'],['김다인','920702'],['김호준','950307'],
+  ['권용재','930410'],['안수민','800422'],['한영옥','750827'],['권혜정','731218'],
+  ['송가은','820625'],['이혜경','840224'],['김선경','751017'],['최옥진','711126'],
+  ['최현지','920227'],['이인선','820713'],['김도현','990605'],['박수영','940608'],
+  ['이다혜','970121'],['이윤비','981010']
+];
+
+function loadDefaultAccounts() {
+  const ta = document.getElementById('accounts-input');
+  ta.value = DEFAULT_ACCOUNTS.map(([n,d]) => n+','+d).join('
+');
+  ta.dispatchEvent(new Event('input'));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('accounts-input');
+  if (ta) {
+    ta.addEventListener('input', () => {
+      const lines = ta.value.split('
+').filter(l=>l.trim() && l.includes(','));
+      document.getElementById('accounts-count').textContent = lines.length + '명 입력됨';
+      document.getElementById('accounts-count').style.color = lines.length === 30 ? 'var(--success)' : 'var(--text-muted)';
+    });
+  }
+});
+
 async function createGame() {
-  const names = document.getElementById('names-input').value.split('').map(x=>x.trim()).filter(Boolean);
-  const events = document.getElementById('events-input').value.split('').map(x=>x.trim()).filter(Boolean);
-  const count = parseInt(document.getElementById('player-count').value);
+  const names = document.getElementById('names-input').value.split('
+').map(x=>x.trim()).filter(Boolean);
+  const events = document.getElementById('events-input').value.split('
+').map(x=>x.trim()).filter(Boolean);
+
+  // 계정 설정 파싱
+  const accountsRaw = document.getElementById('accounts-input').value.split('
+')
+    .map(l => l.trim()).filter(l => l && l.includes(','));
+  const accounts = accountsRaw.map(l => {
+    const idx = l.indexOf(',');
+    return { id: l.slice(0, idx).trim(), password: l.slice(idx+1).trim() };
+  });
 
   const errEl = document.getElementById('setup-error');
   const sucEl = document.getElementById('setup-success');
@@ -733,7 +783,7 @@ async function createGame() {
 
   if (names.length !== 30) { showAlert(errEl, `이름이 ${names.length}개입니다. 정확히 30명을 입력하세요.`); return; }
   if (events.length !== 6) { showAlert(errEl, `이벤트가 ${events.length}개입니다. 정확히 6개를 입력하세요.`); return; }
-  if (!count || count < 1) { showAlert(errEl, '참여 인원 수를 입력하세요.'); return; }
+  if (accounts.length === 0) { showAlert(errEl, '계정 설정에 참여자를 입력하거나 기본 명단을 불러오세요.'); return; }
 
   const btn = document.getElementById('create-btn');
   btn.innerHTML = '<span class="spinner"></span> 생성 중...';
@@ -745,13 +795,10 @@ async function createGame() {
     const cells = [...names.map(n=>({type:'person',label:n})), ...events.map(e=>({type:'event',label:e}))];
 
     generatedCredentials = [];
-    for (let i = 1; i <= count; i++) {
-      const userId = 'player' + String(i).padStart(2,'0');
-      const password = Math.random().toString(36).slice(2,8).toUpperCase();
+    for (const acc of accounts) {
       const board = shuffle([...cells]).map(c => ({...c}));
-
-      await setDoc(doc(db, 'players', userId), {
-        password,
+      await setDoc(doc(db, 'players', acc.id), {
+        password: acc.password,
         board,
         checked: Array(36).fill(false),
         photos: {},
@@ -759,16 +806,16 @@ async function createGame() {
         completed: false,
         createdAt: new Date().toISOString()
       });
-      generatedCredentials.push({ id: userId, password });
+      generatedCredentials.push({ id: acc.id, password: acc.password });
     }
 
-    showAlert(sucEl, `✅ ${count}명의 게임이 생성되었습니다!`);
+    showAlert(sucEl, `✅ ${accounts.length}명의 게임이 생성되었습니다!`);
     renderCredentials();
 
   } catch(e) {
     showAlert(errEl, '오류: ' + e.message);
   } finally {
-    btn.textContent = '?? 게임 생성하기';
+    btn.textContent = '🚀 게임 생성하기';
     btn.disabled = false;
   }
 }
@@ -777,7 +824,7 @@ function renderCredentials() {
   const list = document.getElementById('credentials-list');
   list.innerHTML = generatedCredentials.map(c => `
     <div class="copy-row">
-      <span>?? ${c.id} &nbsp;|&nbsp; ?? ${c.password}</span>
+      <span>👤 <strong>${c.id}</strong> &nbsp;|&nbsp; 🔑 ${c.password}</span>
       <button class="copy-btn" onclick="copyText('${c.id} / ${c.password}', this)">복사</button>
     </div>
   `).join('');
@@ -891,10 +938,10 @@ function openModal(index, cell) {
   if (gameState.checked[index]) return;
   activeCellIndex = index;
   pendingPhotoFile = null;
-  document.getElementById('modal-cell-name').textContent = cell.type === 'event' ? '?? ' + cell.label : '?? ' + cell.label;
+  document.getElementById('modal-cell-name').textContent = cell.type === 'event' ? '⭐ ' + cell.label : '🤳 ' + cell.label;
   document.getElementById('modal-error').classList.remove('show');
   const preview = document.getElementById('photo-preview-area');
-  preview.innerHTML = `<div class="placeholder">??<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />`;
+  preview.innerHTML = `<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />`;
   document.getElementById('modal-confirm-btn').textContent = cell.type === 'event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
   document.getElementById('photo-modal').classList.add('open');
 }
