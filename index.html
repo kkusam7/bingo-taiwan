@@ -253,14 +253,17 @@ textarea { resize: vertical; min-height: 160px; }
   position: absolute;
   top: 0; left: 0;
   border-radius: 6px;
-  opacity: 1;
+  z-index: 1;
+  display: block;
 }
 .bingo-cell.has-photo .cell-label {
-  display: none;
+  display: none !important;
 }
 .bingo-cell.has-photo::after {
-  color: white;
+  color: white !important;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 2;
+  position: absolute;
 }
 .bingo-cell:hover:not(.checked) {
   border-color: var(--accent2);
@@ -268,7 +271,7 @@ textarea { resize: vertical; min-height: 160px; }
 }
 .cell-label {
   position: relative;
-  z-index: 1;
+  z-index: 0;
   pointer-events: none;
 }
 
@@ -823,12 +826,19 @@ function loadPlayers() {
 }
 
 // ── BINGO BOARD ──
+function getPhoto(photos, i) {
+  // Firestore에서 key가 숫자/문자열로 섞여 올 수 있어서 둘 다 확인
+  if (!photos) return null;
+  return photos[i] || photos[String(i)] || null;
+}
+
 function renderBoard(board, checked, photos) {
   var container = document.getElementById('bingo-board');
   container.innerHTML = '';
   board.forEach(function(cell, i) {
     var div = document.createElement('div');
-    var hasPhoto = checked[i] && photos[i];
+    var photoSrc = getPhoto(photos, i);
+    var hasPhoto = checked[i] && photoSrc;
     div.className = 'bingo-cell'
       + (cell.type==='event' ? ' event' : '')
       + (checked[i] ? ' checked' : '')
@@ -836,7 +846,8 @@ function renderBoard(board, checked, photos) {
     div.innerHTML = '<span class="cell-label">'+cell.label+'</span>';
     if (hasPhoto) {
       var img = document.createElement('img');
-      img.src = photos[i];
+      img.src = photoSrc;
+      img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:6px;z-index:0';
       div.insertBefore(img, div.firstChild);
     }
     (function(idx, c) { div.onclick = function() { openModal(idx, c); }; })(i, cell);
@@ -883,11 +894,19 @@ function openModal(index, cell) {
   var alreadyChecked = gameState.checked[index];
   var existingPhoto = gameState.photos && gameState.photos[index];
   var previewArea = document.getElementById('photo-preview-area');
+  // 항상 input 포함한 구조로 초기화
+  previewArea.innerHTML = '<input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2" onchange="previewPhoto(event)" />';
   if (existingPhoto) {
-    // 이미 사진이 있으면 기존 사진 보여주기
-    previewArea.innerHTML = '<img src="'+existingPhoto+'" style="width:100%;height:100%;object-fit:cover;border-radius:8px"><input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" onchange="previewPhoto(event)" />';
+    var prevImg = document.createElement('img');
+    prevImg.className = 'preview-img';
+    prevImg.src = existingPhoto;
+    prevImg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;pointer-events:none;';
+    previewArea.insertBefore(prevImg, previewArea.firstChild);
   } else {
-    previewArea.innerHTML = '<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" onchange="previewPhoto(event)" />';
+    var ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.innerHTML = '📷<br>클릭하여<br>사진 업로드';
+    previewArea.insertBefore(ph, previewArea.firstChild);
   }
   var confirmBtn = document.getElementById('modal-confirm-btn');
   if (alreadyChecked) {
@@ -908,7 +927,18 @@ function previewPhoto(e) {
   var file = e.target.files[0];
   if (!file) return;
   pendingPhotoFile = file;
-  document.getElementById('photo-preview-area').innerHTML = '<img src="'+URL.createObjectURL(file)+'" style="width:100%;height:100%;object-fit:cover;border-radius:8px">';
+  var area = document.getElementById('photo-preview-area');
+  // 기존 미리보기 이미지 제거 (input은 유지)
+  var oldImg = area.querySelector('img.preview-img');
+  if (oldImg) oldImg.remove();
+  var oldPlaceholder = area.querySelector('.placeholder');
+  if (oldPlaceholder) oldPlaceholder.remove();
+  // 새 미리보기 추가
+  var img = document.createElement('img');
+  img.className = 'preview-img';
+  img.src = URL.createObjectURL(file);
+  img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;pointer-events:none;';
+  area.insertBefore(img, area.firstChild);
 }
 
 // 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
@@ -950,7 +980,7 @@ function confirmCell() {
     var newChecked = gameState.checked.slice();
     newChecked[activeCellIndex] = true;
     var newPhotos = Object.assign({}, gameState.photos||{});
-    if (photoBase64) newPhotos[activeCellIndex] = photoBase64;
+    if (photoBase64) newPhotos[String(activeCellIndex)] = photoBase64;
     var newBingos = countBingos(newChecked);
     var completed = newBingos >= 3;
 
