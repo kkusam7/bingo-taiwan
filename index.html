@@ -10,7 +10,6 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   // ============================================================
   // 🔧 여기에 Firebase 설정을 입력하세요
@@ -27,9 +26,8 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  const storage = getStorage(app);
 
-  window._fb = { db, storage, doc, setDoc, getDoc, collection, getDocs, updateDoc, ref, uploadBytes, getDownloadURL };
+  window._fb = { db, doc, setDoc, getDoc, collection, getDocs, updateDoc };
 </script>
 
 <style>
@@ -605,7 +603,7 @@ textarea { resize: vertical; min-height: 160px; }
     <div class="modal-sub">셀카를 찍어서 업로드하세요! 📷</div>
     <div class="photo-preview" id="photo-preview-area" onclick="document.getElementById('photo-file').click()">
       <div class="placeholder">📷<br>클릭하여<br>사진 업로드</div>
-      <input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />
+      <input type="file" id="photo-file" accept="image/*" onchange="previewPhoto(event)" />
     </div>
     <div class="alert alert-error" id="modal-error"></div>
     <div style="display:flex;gap:8px">
@@ -876,13 +874,27 @@ function getBingoLines() {
 
 // ── PHOTO MODAL ──
 function openModal(index, cell) {
-  if (!gameState || gameState.checked[index]) return;
+  if (!gameState) return;
+  // 이미 체크된 칸도 사진 등록/변경을 위해 모달 열기
   activeCellIndex = index;
   pendingPhotoFile = null;
   document.getElementById('modal-cell-name').textContent = (cell.type==='event'?'⭐ ':'🤳 ') + cell.label;
   document.getElementById('modal-error').classList.remove('show');
-  document.getElementById('photo-preview-area').innerHTML = '<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" capture="user" onchange="previewPhoto(event)" />';
-  document.getElementById('modal-confirm-btn').textContent = cell.type==='event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
+  var alreadyChecked = gameState.checked[index];
+  var existingPhoto = gameState.photos && gameState.photos[index];
+  var previewArea = document.getElementById('photo-preview-area');
+  if (existingPhoto) {
+    // 이미 사진이 있으면 기존 사진 보여주기
+    previewArea.innerHTML = '<img src="'+existingPhoto+'" style="width:100%;height:100%;object-fit:cover;border-radius:8px"><input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" onchange="previewPhoto(event)" />';
+  } else {
+    previewArea.innerHTML = '<div class="placeholder">📷<br>클릭하여<br>사진 업로드</div><input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" onchange="previewPhoto(event)" />';
+  }
+  var confirmBtn = document.getElementById('modal-confirm-btn');
+  if (alreadyChecked) {
+    confirmBtn.textContent = '📷 사진 변경하기';
+  } else {
+    confirmBtn.textContent = cell.type==='event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
+  }
   document.getElementById('photo-modal').classList.add('open');
 }
 
@@ -899,6 +911,28 @@ function previewPhoto(e) {
   document.getElementById('photo-preview-area').innerHTML = '<img src="'+URL.createObjectURL(file)+'" style="width:100%;height:100%;object-fit:cover;border-radius:8px">';
 }
 
+// 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
+function resizeAndConvertToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function() {
+      var MAX = 400; // 최대 400px (용량 최소화)
+      var w = img.width, h = img.height;
+      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+      else        { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      // JPEG quality 0.7로 압축
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = function() { reject(new Error('이미지 로드 실패')); };
+    img.src = url;
+  });
+}
+
 function confirmCell() {
   var btn = document.getElementById('modal-confirm-btn');
   var errEl = document.getElementById('modal-error');
@@ -906,22 +940,17 @@ function confirmCell() {
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
 
+  // 사진을 Base64로 변환 (Storage 없이 Firestore에 직접 저장)
   var photoPromise = Promise.resolve(null);
   if (pendingPhotoFile) {
-    photoPromise = fbReady().then(function() {
-      var fbObj = fb();
-      var storageRef = fbObj.ref(fbObj.storage, 'photos/'+currentUser+'/'+activeCellIndex+'_'+Date.now());
-      return fbObj.uploadBytes(storageRef, pendingPhotoFile).then(function() {
-        return fbObj.getDownloadURL(storageRef);
-      });
-    });
+    photoPromise = resizeAndConvertToBase64(pendingPhotoFile);
   }
 
-  photoPromise.then(function(photoUrl) {
+  photoPromise.then(function(photoBase64) {
     var newChecked = gameState.checked.slice();
     newChecked[activeCellIndex] = true;
     var newPhotos = Object.assign({}, gameState.photos||{});
-    if (photoUrl) newPhotos[activeCellIndex] = photoUrl;
+    if (photoBase64) newPhotos[activeCellIndex] = photoBase64;
     var newBingos = countBingos(newChecked);
     var completed = newBingos >= 3;
 
