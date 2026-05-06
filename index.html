@@ -1118,7 +1118,7 @@ function resizeAndConvertToBase64(file) {
     var img = new Image();
     var url = URL.createObjectURL(file);
     img.onload = function() {
-      var MAX = 800; // 최대 800px (용량 최소화)
+      var MAX = 700; // 최대 700px (용량 최소화)
       var w = img.width, h = img.height;
       if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
       else        { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
@@ -1126,8 +1126,8 @@ function resizeAndConvertToBase64(file) {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      // JPEG quality 0.85로 압축
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
+      // JPEG quality 0.7로 압축
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
     };
     img.onerror = function() { reject(new Error('이미지 로드 실패')); };
     img.src = url;
