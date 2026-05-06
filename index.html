@@ -9,7 +9,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   // ============================================================
   // 🔧 여기에 Firebase 설정을 입력하세요
@@ -27,7 +27,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  window._fb = { db, doc, setDoc, getDoc, collection, getDocs, updateDoc };
+  window._fb = { db, doc, setDoc, getDoc, collection, getDocs, updateDoc, deleteDoc };
 </script>
 
 <style>
@@ -472,10 +472,14 @@ textarea { resize: vertical; min-height: 160px; }
     <div class="card" style="margin-top:32px">
       <div class="card-title">로그인</div>
       <div class="alert alert-error" id="login-error"></div>
-      <label>아이디</label>
-      <input type="text" id="login-id" placeholder="아이디 입력" />
-      <label>비밀번호</label>
-      <input type="password" id="login-pw" placeholder="비밀번호 입력" />
+      <label>게임 선택</label>
+      <select id="login-game" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:15px;padding:12px 14px;outline:none;margin-bottom:16px;cursor:pointer;">
+        <option value="">-- 게임을 선택하세요 --</option>
+      </select>
+      <label>아이디 (이름)</label>
+      <input type="text" id="login-id" placeholder="예: 이익재" />
+      <label>비밀번호 (생년월일 6자리)</label>
+      <input type="password" id="login-pw" placeholder="예: 720412" />
       <button class="btn btn-primary" onclick="doLogin()">🚀 게임 시작</button>
       <div style="text-align:center;margin-top:16px">
         <button class="btn btn-secondary btn-sm" onclick="showScreen('screen-admin-login')">⚙️ 운영자 로그인</button>
@@ -510,12 +514,19 @@ textarea { resize: vertical; min-height: 160px; }
   <div class="main wide" style="padding-top:28px">
 
     <div class="tabs">
-      <button class="tab active" onclick="switchAdminTab('tab-setup', this)">🎮 게임 설정</button>
+      <button class="tab active" onclick="switchAdminTab('tab-setup', this)">🎮 게임 생성</button>
+      <button class="tab" onclick="switchAdminTab('tab-games', this)">📋 게임 목록</button>
       <button class="tab" onclick="switchAdminTab('tab-players', this)">👥 참여자 관리</button>
     </div>
 
     <!-- TAB: SETUP -->
     <div id="tab-setup">
+      <div class="card">
+        <div class="card-title">게임 제목</div>
+        <label>이 게임의 고유한 제목을 입력하세요 (예: 2024 대만연수 1팀)</label>
+        <input type="text" id="game-title-input" placeholder="예: 2024 대만연수 1팀" />
+        <div class="alert alert-info show" style="font-size:12px">같은 제목으로 생성하면 기존 게임에 덮어씌워집니다!</div>
+      </div>
       <div class="card">
         <div class="card-title">참여자 이름 (30명)</div>
         <label>한 줄에 이름 하나씩 입력하세요 (정확히 30명)</label>
@@ -553,10 +564,25 @@ textarea { resize: vertical; min-height: 160px; }
       </div>
     </div>
 
+    <!-- TAB: GAMES -->
+    <div id="tab-games" style="display:none">
+      <div class="card">
+        <div class="card-title">게임 목록</div>
+        <button class="btn btn-secondary btn-sm" style="margin-bottom:16px" onclick="loadGames()">🔄 새로고침</button>
+        <div id="games-list">
+          <div style="text-align:center;color:var(--text-muted);padding:24px">새로고침을 눌러주세요</div>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB: PLAYERS -->
     <div id="tab-players" style="display:none">
       <div class="card">
         <div class="card-title">참여자 현황</div>
+        <label>게임 선택</label>
+        <select id="admin-game-select" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:14px;padding:10px 14px;outline:none;margin-bottom:12px;cursor:pointer;" onchange="loadPlayers()">
+          <option value="">-- 게임을 선택하세요 --</option>
+        </select>
         <button class="btn btn-secondary btn-sm" style="margin-bottom:16px" onclick="loadPlayers()">🔄 새로고침</button>
         <div style="overflow-x:auto">
           <table class="player-table">
@@ -643,6 +669,7 @@ var ADMIN_PASSWORD = "Apple1234!";
 
 // ── STATE ──
 var currentUser = null;
+var currentGame = null;  // 현재 선택된 게임 ID
 var gameState = null;
 var activeCellIndex = null;
 var pendingPhotoFile = null;
@@ -683,10 +710,11 @@ function showScreen(id) {
 function switchAdminTab(tabId, btn) {
   document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   btn.classList.add('active');
-  ['tab-setup','tab-players'].forEach(function(id) {
+  ['tab-setup','tab-games','tab-players'].forEach(function(id) {
     document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
   });
-  if (tabId === 'tab-players') loadPlayers();
+  if (tabId === 'tab-games') loadGames();
+  if (tabId === 'tab-players') { loadAdminGameSelect(); loadPlayers(); }
 }
 
 function showAlert(el, msg) {
@@ -696,21 +724,24 @@ function showAlert(el, msg) {
 
 // ── LOGIN ──
 function doLogin() {
+  var gameId = document.getElementById('login-game').value;
   var id = document.getElementById('login-id').value.trim();
   var pw = document.getElementById('login-pw').value.trim();
   var errEl = document.getElementById('login-error');
   errEl.classList.remove('show');
 
+  if (!gameId) { showAlert(errEl, '게임을 선택하세요.'); return; }
   if (!id || !pw) { showAlert(errEl, '아이디와 비밀번호를 입력하세요.'); return; }
 
   fbReady().then(function() {
     var fbObj = fb();
-    return fbObj.getDoc(fbObj.doc(fbObj.db, 'players', id));
+    return fbObj.getDoc(fbObj.doc(fbObj.db, 'games', gameId, 'players', id));
   }).then(function(snap) {
     if (!snap.exists()) { showAlert(document.getElementById('login-error'), '존재하지 않는 아이디입니다.'); return; }
     var data = snap.data();
     if (data.password !== pw) { showAlert(document.getElementById('login-error'), '비밀번호가 올바르지 않습니다.'); return; }
     currentUser = id;
+    currentGame = gameId;
     gameState = data;
     document.getElementById('game-user-label').textContent = id + ' 님';
     renderBoard(data.board, data.checked, data.photos || {});
@@ -733,6 +764,7 @@ function doAdminLogin() {
 
 function logout() {
   currentUser = null;
+  currentGame = null;
   gameState = null;
   showScreen('screen-login');
 }
@@ -745,6 +777,7 @@ function loadDefaultAccounts() {
 }
 
 function createGame() {
+  var gameTitle = document.getElementById('game-title-input').value.trim();
   var names = document.getElementById('names-input').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
   var events = document.getElementById('events-input').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
   var accountLines = document.getElementById('accounts-input').value.split('\n').map(function(l){return l.trim();}).filter(function(l){return l && l.indexOf(',')!==-1;});
@@ -758,9 +791,13 @@ function createGame() {
   errEl.classList.remove('show');
   sucEl.classList.remove('show');
 
+  if (!gameTitle) { showAlert(errEl, '게임 제목을 입력하세요.'); return; }
   if (names.length !== 30) { showAlert(errEl, '이름이 ' + names.length + '개입니다. 정확히 30명을 입력하세요.'); return; }
   if (events.length !== 6) { showAlert(errEl, '이벤트가 ' + events.length + '개입니다. 정확히 6개를 입력하세요.'); return; }
   if (accounts.length === 0) { showAlert(errEl, '계정 목록을 입력하거나 기본 명단을 불러오세요.'); return; }
+
+  // 게임 ID: 제목을 기반으로 생성 (공백→언더스코어, 특수문자 제거)
+  var gameId = gameTitle.replace(/\s+/g, '_').replace(/[^\w가-힣]/g, '') + '_' + Date.now();
 
   var btn = document.getElementById('create-btn');
   btn.innerHTML = '<span class="spinner"></span> 생성 중...';
@@ -770,12 +807,20 @@ function createGame() {
 
   fbReady().then(function() {
     var fbObj = fb();
+    // 게임 메타데이터 저장
+    return fbObj.setDoc(fbObj.doc(fbObj.db, 'games', gameId), {
+      title: gameTitle,
+      createdAt: new Date().toISOString(),
+      playerCount: accounts.length
+    });
+  }).then(function() {
+    var fbObj = fb();
     generatedCredentials = [];
     var chain = Promise.resolve();
     accounts.forEach(function(acc) {
       chain = chain.then(function() {
         var board = shuffle(cells.slice()).map(function(c){return Object.assign({},c);});
-        return fbObj.setDoc(fbObj.doc(fbObj.db,'players',acc.id), {
+        return fbObj.setDoc(fbObj.doc(fbObj.db, 'games', gameId, 'players', acc.id), {
           password: acc.password, board: board,
           checked: Array(36).fill(false), photos: {},
           bingos: 0, completed: false, createdAt: new Date().toISOString()
@@ -786,7 +831,7 @@ function createGame() {
     });
     return chain;
   }).then(function() {
-    showAlert(sucEl, '✅ ' + generatedCredentials.length + '명의 게임이 생성되었습니다!');
+    showAlert(sucEl, '✅ [' + gameTitle + '] ' + generatedCredentials.length + '명의 게임이 생성되었습니다!');
     renderCredentials();
   }).catch(function(e) {
     showAlert(errEl, '오류: ' + e.message);
@@ -821,12 +866,41 @@ function downloadCSV() {
   a.click();
 }
 
+// 관리자 게임 선택 드롭다운 채우기
+function loadAdminGameSelect() {
+  var sel = document.getElementById('admin-game-select');
+  var currentVal = sel.value;
+  fbReady().then(function() {
+    var fbObj = fb();
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'games'));
+  }).then(function(snap) {
+    sel.innerHTML = '<option value="">-- 게임을 선택하세요 --</option>';
+    if (!snap.empty) {
+      var games = [];
+      snap.forEach(function(d) { games.push({id: d.id, data: d.data()}); });
+      games.sort(function(a,b) { return (b.data.createdAt||'').localeCompare(a.data.createdAt||''); });
+      games.forEach(function(g) {
+        var opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.data.title + ' (' + (g.data.playerCount||0) + '명)';
+        if (g.id === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+  }).catch(function(e) { console.error(e); });
+}
+
 function loadPlayers() {
+  var gameId = document.getElementById('admin-game-select').value;
   var tbody = document.getElementById('players-tbody');
+  if (!gameId) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">게임을 선택하세요</td></tr>';
+    return;
+  }
   tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px"><span class="spinner"></span></td></tr>';
   fbReady().then(function() {
     var fbObj = fb();
-    return fbObj.getDocs(fbObj.collection(fbObj.db, 'players'));
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'games', gameId, 'players'));
   }).then(function(snap) {
     if (snap.empty) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">참여자 없음</td></tr>';
@@ -843,6 +917,63 @@ function loadPlayers() {
     });
   }).catch(function(e) {
     tbody.innerHTML = '<tr><td colspan="4" style="color:var(--accent3);padding:24px">'+e.message+'</td></tr>';
+  });
+}
+
+// 게임 목록 탭
+function loadGames() {
+  var container = document.getElementById('games-list');
+  container.innerHTML = '<div style="text-align:center;padding:24px"><span class="spinner"></span></div>';
+  fbReady().then(function() {
+    var fbObj = fb();
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'games'));
+  }).then(function(snap) {
+    if (snap.empty) {
+      container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px">생성된 게임이 없습니다</div>';
+      return;
+    }
+    var games = [];
+    snap.forEach(function(d) { games.push({id: d.id, data: d.data()}); });
+    games.sort(function(a,b) { return (b.data.createdAt||'').localeCompare(a.data.createdAt||''); });
+    container.innerHTML = games.map(function(g) {
+      var d = g.data;
+      var dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('ko-KR') : '-';
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">'
+        + '<div>'
+        + '<div style="font-size:15px;font-weight:700;color:var(--text);">📋 ' + (d.title||g.id) + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">👥 ' + (d.playerCount||0) + '명 · 생성일: ' + dateStr + '</div>'
+        + '</div>'
+        + '<button class="btn btn-danger btn-sm" onclick="deleteGame(\'' + g.id + '\', \'' + (d.title||g.id) + '\')">🗑️ 삭제</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }).catch(function(e) {
+    container.innerHTML = '<div style="color:var(--accent3);padding:24px">'+e.message+'</div>';
+  });
+}
+
+function deleteGame(gameId, gameTitle) {
+  if (!confirm('[' + gameTitle + '] 게임을 삭제하시겠습니까?\n참여자 데이터도 모두 삭제됩니다.')) return;
+  fbReady().then(function() {
+    var fbObj = fb();
+    // 참여자 먼저 삭제 후 게임 삭제
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'games', gameId, 'players')).then(function(snap) {
+      var chain = Promise.resolve();
+      snap.forEach(function(d) {
+        chain = chain.then(function() {
+          return fbObj.deleteDoc(fbObj.doc(fbObj.db, 'games', gameId, 'players', d.id));
+        });
+      });
+      return chain;
+    }).then(function() {
+      return fbObj.deleteDoc(fbObj.doc(fbObj.db, 'games', gameId));
+    });
+  }).then(function() {
+    alert('게임이 삭제되었습니다.');
+    loadGames();
+  }).catch(function(e) {
+    alert('삭제 실패: ' + e.message);
   });
 }
 
@@ -1030,7 +1161,7 @@ function confirmCell() {
 
     return fbReady().then(function() {
       var fbObj = fb();
-      return fbObj.updateDoc(fbObj.doc(fbObj.db,'players',currentUser), {
+      return fbObj.updateDoc(fbObj.doc(fbObj.db, 'games', currentGame, 'players', currentUser), {
         checked: newChecked, photos: newPhotos, bingos: newBingos, completed: completed
       }).then(function() {
         gameState.checked = newChecked;
@@ -1071,6 +1202,25 @@ function shuffle(arr) {
 
 // ── 이벤트 리스너 ──
 document.addEventListener('DOMContentLoaded', function() {
+  // 로그인 화면 게임 목록 로드
+  fbReady().then(function() {
+    var fbObj = fb();
+    return fbObj.getDocs(fbObj.collection(fbObj.db, 'games'));
+  }).then(function(snap) {
+    var sel = document.getElementById('login-game');
+    if (!snap.empty) {
+      var games = [];
+      snap.forEach(function(d) { games.push({id: d.id, data: d.data()}); });
+      games.sort(function(a,b) { return (b.data.createdAt||'').localeCompare(a.data.createdAt||''); });
+      games.forEach(function(g) {
+        var opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.data.title || g.id;
+        sel.appendChild(opt);
+      });
+    }
+  }).catch(function(e) { console.error('게임 목록 로드 실패:', e); });
+
   var ni = document.getElementById('names-input');
   if (ni) ni.addEventListener('input', function() {
     var n = ni.value.split('\n').filter(function(x){return x.trim();}).length;
