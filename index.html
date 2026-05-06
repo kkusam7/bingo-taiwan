@@ -1111,23 +1111,32 @@ function previewPhoto(e) {
   btn.style.opacity = '1';
   document.getElementById('modal-sub-text').textContent = '✅ 사진 선택 완료! 저장 버튼을 눌러주세요.';
 }
-
 // 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
+// Firestore 1MB 한도 대응: 단계적 자동 압축
 function resizeAndConvertToBase64(file) {
   return new Promise(function(resolve, reject) {
     var img = new Image();
     var url = URL.createObjectURL(file);
     img.onload = function() {
-      var MAX = 700; // 최대 700px (용량 최소화)
-      var w = img.width, h = img.height;
-      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
-      else        { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
-      var canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      // JPEG quality 0.7로 압축
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+
+      function tryCompress(maxPx, quality) {
+        var w = img.width, h = img.height;
+        if (w > h) { if (w > maxPx) { h = Math.round(h * maxPx / w); w = maxPx; } }
+        else        { if (h > maxPx) { w = Math.round(w * maxPx / h); h = maxPx; } }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        return canvas.toDataURL('image/jpeg', quality);
+      }
+
+      // 단계적 압축 (Firestore 1MB = base64 약 960KB 이하 목표)
+      var result = tryCompress(600, 0.75);
+      if (result.length > 960000) result = tryCompress(500, 0.65);
+      if (result.length > 960000) result = tryCompress(400, 0.6);
+      if (result.length > 960000) result = tryCompress(300, 0.55);
+
+      resolve(result);
     };
     img.onerror = function() { reject(new Error('이미지 로드 실패')); };
     img.src = url;
