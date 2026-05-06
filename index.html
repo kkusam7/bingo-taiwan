@@ -477,9 +477,9 @@ textarea { resize: vertical; min-height: 160px; }
         <option value="">-- 게임을 선택하세요 --</option>
       </select>
       <label>아이디 (이름)</label>
-      <input type="text" id="login-id" placeholder="예: 홍길동" />
+      <input type="text" id="login-id" placeholder="예: 이익재" />
       <label>비밀번호 (생년월일 6자리)</label>
-      <input type="password" id="login-pw" placeholder="예: 901225" />
+      <input type="password" id="login-pw" placeholder="예: 720412" />
       <button class="btn btn-primary" onclick="doLogin()">🚀 게임 시작</button>
       <div style="text-align:center;margin-top:16px">
         <button class="btn btn-secondary btn-sm" onclick="showScreen('screen-admin-login')">⚙️ 운영자 로그인</button>
@@ -678,7 +678,7 @@ var generatedCredentials = [];
 // ── 기본 참여자 명단 ──
 var DEFAULT_ACCOUNTS = [
   ['이익재','720412'],['최진욱','871003'],['김건우','790417'],['김윤희','711113'],
-  ['김정은p','811210'],['김정은','761105'],['박진경','860206'],['한민희','760802'],
+  ['김정은p','810129'],['김정은','761105'],['박진경','860206'],['한민희','760802'],
   ['고정실','760811'],['안호식','810423'],['오신현','780718'],['박소정','920127'],
   ['전인순','770115'],['방지은','920512'],['김다인','920702'],['김호준','950307'],
   ['권용재','930410'],['안수민','800422'],['한영옥','750827'],['권혜정','731218'],
@@ -1111,6 +1111,7 @@ function previewPhoto(e) {
   btn.style.opacity = '1';
   document.getElementById('modal-sub-text').textContent = '✅ 사진 선택 완료! 저장 버튼을 눌러주세요.';
 }
+
 // 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
 // Firestore 1MB 한도 대응: 단계적 자동 압축
 function resizeAndConvertToBase64(file) {
