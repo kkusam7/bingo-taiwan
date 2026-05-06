@@ -603,15 +603,18 @@ textarea { resize: vertical; min-height: 160px; }
 <div class="modal-overlay" id="photo-modal">
   <div class="modal">
     <div class="modal-title" id="modal-cell-name"></div>
-    <div class="modal-sub">셀카를 찍어서 업로드하세요! 📷</div>
-    <div class="photo-preview" id="photo-preview-area" onclick="document.getElementById('photo-file').click()">
-      <div class="placeholder">📷<br>클릭하여<br>사진 업로드</div>
-      <input type="file" id="photo-file" accept="image/*" onchange="previewPhoto(event)" />
-    </div>
+    <div class="modal-sub" id="modal-sub-text">📷 사진을 먼저 찍어주세요!</div>
+    <label for="photo-file" style="display:block;cursor:pointer;">
+      <div class="photo-preview" id="photo-preview-area">
+        <div class="placeholder" id="photo-placeholder">📷<br>여기를 눌러<br>사진 찍기</div>
+        <img id="photo-preview-img" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px;" />
+      </div>
+    </label>
+    <input type="file" id="photo-file" accept="image/*" onchange="previewPhoto(event)" style="display:none;" />
     <div class="alert alert-error" id="modal-error"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal()">취소</button>
-      <button class="btn btn-primary" id="modal-confirm-btn" onclick="confirmCell()">✅ 완료 체크</button>
+      <button class="btn btn-primary" id="modal-confirm-btn" onclick="confirmCell()" disabled style="opacity:0.5">✅ 완료 체크</button>
     </div>
   </div>
 </div>
@@ -893,26 +896,37 @@ function openModal(index, cell) {
   document.getElementById('modal-error').classList.remove('show');
   var alreadyChecked = gameState.checked[index];
   var existingPhoto = gameState.photos && gameState.photos[index];
-  var previewArea = document.getElementById('photo-preview-area');
-  // 항상 input 포함한 구조로 초기화
-  previewArea.innerHTML = '<input type="file" id="photo-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2" onchange="previewPhoto(event)" />';
+  // 미리보기 초기화
+  var previewImg = document.getElementById('photo-preview-img');
+  var placeholder = document.getElementById('photo-placeholder');
+  document.getElementById('photo-file').value = '';
   if (existingPhoto) {
-    var prevImg = document.createElement('img');
-    prevImg.className = 'preview-img';
-    prevImg.src = existingPhoto;
-    prevImg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;pointer-events:none;';
-    previewArea.insertBefore(prevImg, previewArea.firstChild);
+    previewImg.src = existingPhoto;
+    previewImg.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    document.getElementById('modal-sub-text').textContent = '📷 사진을 바꾸려면 눌러주세요';
   } else {
-    var ph = document.createElement('div');
-    ph.className = 'placeholder';
-    ph.innerHTML = '📷<br>클릭하여<br>사진 업로드';
-    previewArea.insertBefore(ph, previewArea.firstChild);
+    previewImg.src = '';
+    previewImg.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'block';
+    document.getElementById('modal-sub-text').textContent = '📷 사진을 먼저 찍어주세요!';
   }
   var confirmBtn = document.getElementById('modal-confirm-btn');
   if (alreadyChecked) {
+    // 이미 체크된 칸: 사진 변경 모드 - 바로 누를 수 있게
     confirmBtn.textContent = '📷 사진 변경하기';
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
   } else {
     confirmBtn.textContent = cell.type==='event' ? '✅ 이벤트 완료' : '✅ 완료 체크';
+    // 사진 없으면 비활성화 (이벤트칸은 사진 없어도 OK)
+    if (cell.type === 'event') {
+      confirmBtn.disabled = false;
+      confirmBtn.style.opacity = '1';
+    } else {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.5';
+    }
   }
   document.getElementById('photo-modal').classList.add('open');
 }
@@ -927,18 +941,17 @@ function previewPhoto(e) {
   var file = e.target.files[0];
   if (!file) return;
   pendingPhotoFile = file;
-  var area = document.getElementById('photo-preview-area');
-  // 기존 미리보기 이미지 제거 (input은 유지)
-  var oldImg = area.querySelector('img.preview-img');
-  if (oldImg) oldImg.remove();
-  var oldPlaceholder = area.querySelector('.placeholder');
-  if (oldPlaceholder) oldPlaceholder.remove();
-  // 새 미리보기 추가
-  var img = document.createElement('img');
-  img.className = 'preview-img';
-  img.src = URL.createObjectURL(file);
-  img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;pointer-events:none;';
-  area.insertBefore(img, area.firstChild);
+  // 미리보기 이미지 표시
+  var previewImg = document.getElementById('photo-preview-img');
+  var placeholder = document.getElementById('photo-placeholder');
+  previewImg.src = URL.createObjectURL(file);
+  previewImg.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'none';
+  // 사진 선택됐으니 완료 버튼 활성화
+  var btn = document.getElementById('modal-confirm-btn');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  document.getElementById('modal-sub-text').textContent = '✅ 사진이 선택됐어요! 완료 버튼을 눌러주세요.';
 }
 
 // 사진을 Canvas로 리사이즈 후 Base64로 변환 (Firestore 직접 저장용)
