@@ -743,9 +743,22 @@ function doLogin() {
     currentUser = id;
     currentGame = gameId;
     gameState = data;
+    gameState.photos = {};
     document.getElementById('game-user-label').textContent = id + ' 님';
-    renderBoard(data.board, data.checked, data.photos || {});
-    showScreen(data.completed ? 'screen-win' : 'screen-game');
+    // photos 서브컬렉션 로드
+    var fbObj2 = fb();
+    fbObj2.getDocs(fbObj2.collection(fbObj2.db, 'games', gameId, 'players', id, 'photos'))
+      .then(function(photoSnap) {
+        photoSnap.forEach(function(pd) {
+          gameState.photos[pd.id] = pd.data().data;
+        });
+        renderBoard(data.board, data.checked, gameState.photos);
+        showScreen(data.completed ? 'screen-win' : 'screen-game');
+      }).catch(function() {
+        // 사진 로드 실패해도 게임은 진행
+        renderBoard(data.board, data.checked, {});
+        showScreen(data.completed ? 'screen-win' : 'screen-game');
+      });
   }).catch(function(e) {
     showAlert(document.getElementById('login-error'), '오류: ' + e.message);
   });
@@ -1151,7 +1164,6 @@ function confirmCell() {
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
 
-  // 사진을 Base64로 변환 (Storage 없이 Firestore에 직접 저장)
   var photoPromise = Promise.resolve(null);
   if (pendingPhotoFile) {
     photoPromise = resizeAndConvertToBase64(pendingPhotoFile);
@@ -1160,22 +1172,38 @@ function confirmCell() {
   photoPromise.then(function(photoBase64) {
     var newChecked = gameState.checked.slice();
     newChecked[activeCellIndex] = true;
-    var newPhotos = Object.assign({}, gameState.photos||{});
-    if (photoBase64) {
-      // 새 사진 저장
-      newPhotos[String(activeCellIndex)] = photoBase64;
-    }
-    // pendingPhotoFile 없으면 기존 사진 그대로 유지 (변경 없음)
     var newBingos = countBingos(newChecked);
     var completed = newBingos >= 3;
 
     return fbReady().then(function() {
       var fbObj = fb();
-      return fbObj.updateDoc(fbObj.doc(fbObj.db, 'games', currentGame, 'players', currentUser), {
-        checked: newChecked, photos: newPhotos, bingos: newBingos, completed: completed
-      }).then(function() {
+      var chain = Promise.resolve();
+
+      // 사진은 별도 문서에 저장 (photos/{index} 서브컬렉션)
+      // 메인 문서에는 사진 제외 - 1MB 초과 방지
+      if (photoBase64) {
+        chain = chain.then(function() {
+          return fbObj.setDoc(
+            fbObj.doc(fbObj.db, 'games', currentGame, 'players', currentUser, 'photos', String(activeCellIndex)),
+            { data: photoBase64, updatedAt: new Date().toISOString() }
+          );
+        });
+      }
+
+      // 메인 문서: checked/bingos/completed만 업데이트 (photos 없음)
+      chain = chain.then(function() {
+        return fbObj.updateDoc(
+          fbObj.doc(fbObj.db, 'games', currentGame, 'players', currentUser),
+          { checked: newChecked, bingos: newBingos, completed: completed }
+        );
+      });
+
+      return chain.then(function() {
         gameState.checked = newChecked;
-        gameState.photos = newPhotos;
+        if (photoBase64) {
+          if (!gameState.photos) gameState.photos = {};
+          gameState.photos[String(activeCellIndex)] = photoBase64;
+        }
         gameState.bingos = newBingos;
         gameState.completed = completed;
         closeModal();
